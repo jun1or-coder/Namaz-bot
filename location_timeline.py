@@ -61,6 +61,8 @@ from datetime import date, timedelta
 # City lookup: name (lowercase) -> calibration dict.
 #   lat/lon/tz/dst: as before (tz = STANDARD TIME UTC offset; dst cities get
 #   seasonal adjustment below).
+#   country: ISO-ish country code, used by the cron bot to decide whether the
+#   DUMK "+5min Dhuhr/Asr" safety margin applies (KZ only).
 #   fajr_angle/isha_angle: sun depression angle in degrees. isha_angle is
 #   None for cities using the fixed Maghrib+minutes rule instead (see
 #   isha_offset_min).
@@ -76,59 +78,136 @@ from datetime import date, timedelta
 # istanbul against aladhan.com method=13 (Diyanet); dubai method=8 (Gulf
 # Region); moscow method=14 (DUM Russia); mecca/medina/jeddah method=4
 # (Umm al-Qura). Checked 2026-08-19/20. See README.md for the full report.
+# Other Kazakhstan cities reuse Astana's verified DUMK params (15°/15°,
+# Hanafi asr) at each city's own coordinates/elevation — the astronomical
+# formula was validated year-round at Astana, but individual cities weren't
+# separately spot-checked against a local published timetable.
 CITY_LOOKUP = {
-    "astana":  {"lat": 51.1801, "lon": 71.4460, "tz": 5.0, "dst": False,
+    "astana":  {"lat": 51.1801, "lon": 71.4460, "tz": 5.0, "dst": False, "country": "KZ",
                 "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
                 "asr_method": "hanafi", "elevation": 347.0, "calibrated": True},
-    "almaty":  {"lat": 43.2220, "lon": 76.8512, "tz": 5.0, "dst": False,
+    "almaty":  {"lat": 43.2220, "lon": 76.8512, "tz": 5.0, "dst": False, "country": "KZ",
                 "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
                 "asr_method": "hanafi", "elevation": 800.0, "calibrated": True,
                 "note": "DUMK's own site adds an extra 'ihtiyat' precaution offset "
                         "(asymmetric, up to ~8-10min on Dhuhr/Asr/Maghrib) that this "
                         "engine doesn't model; Fajr/Isha still land within ~1min."},
-    "istanbul": {"lat": 41.0082, "lon": 28.9784, "tz": 3.0, "dst": False,  # Turkey: permanent UTC+3 since 2016
+    "shymkent":    {"lat": 42.3000, "lon": 69.6000, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 506.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "taraz":       {"lat": 42.9000, "lon": 71.3667, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 658.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "karaganda":   {"lat": 49.8047, "lon": 73.1094, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 553.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "aktobe":      {"lat": 50.2839, "lon": 57.2094, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 219.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "pavlodar":    {"lat": 52.2873, "lon": 76.9674, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 123.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "oskemen":     {"lat": 49.9714, "lon": 82.6059, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 290.0, "calibrated": False,
+                "note": "Ust-Kamenogorsk. Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "semey":       {"lat": 50.4111, "lon": 80.2275, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 200.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "atyrau":      {"lat": 47.1164, "lon": 51.8814, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 0.0, "calibrated": False,
+                "note": "Below/near sea level near the Caspian; elevation clamped to 0. "
+                        "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "aktau":       {"lat": 43.6510, "lon": 51.1730, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 2.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "kostanay":    {"lat": 53.2144, "lon": 63.6246, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 172.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "petropavlovsk": {"lat": 54.8667, "lon": 69.1500, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 130.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "kyzylorda":   {"lat": 44.8479, "lon": 65.5093, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 130.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "oral":        {"lat": 51.2333, "lon": 51.3667, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 34.0, "calibrated": False,
+                "note": "Uralsk. Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "kokshetau":   {"lat": 53.2833, "lon": 69.3833, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 340.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "turkestan":   {"lat": 43.3000, "lon": 68.2667, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 220.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "zhezkazgan":  {"lat": 47.8043, "lon": 67.7144, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 317.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "balkhash":    {"lat": 46.8481, "lon": 74.9950, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 343.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "ekibastuz":   {"lat": 51.7302, "lon": 75.3269, "tz": 5.0, "dst": False, "country": "KZ",
+                "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
+                "asr_method": "hanafi", "elevation": 168.0, "calibrated": False,
+                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+    "istanbul": {"lat": 41.0082, "lon": 28.9784, "tz": 3.0, "dst": False, "country": "TR",  # Turkey: permanent UTC+3 since 2016
                 "fajr_angle": 18.0, "isha_angle": 17.0, "isha_offset_min": None,
                 "asr_method": "standard", "elevation": 40.0, "calibrated": True,
                 "note": "Diyanet applies its own 'ihtiyat' offsets beyond angle+elevation "
                         "(~5-7min on Sunrise/Dhuhr/Asr/Maghrib); Fajr/Isha land within ~1min."},
-    "antalya": {"lat": 36.8969, "lon": 30.7133, "tz": 3.0, "dst": False,
+    "antalya": {"lat": 36.8969, "lon": 30.7133, "tz": 3.0, "dst": False, "country": "TR",
                 "fajr_angle": 18.0, "isha_angle": 17.0, "isha_offset_min": None,
                 "asr_method": "standard", "elevation": 30.0, "calibrated": False,
                 "note": "Not independently verified — reuses Istanbul/Diyanet params "
                         "(same national authority)."},
-    "dubai":   {"lat": 25.2048, "lon": 55.2708, "tz": 4.0, "dst": False,
+    "dubai":   {"lat": 25.2048, "lon": 55.2708, "tz": 4.0, "dst": False, "country": "AE",
                 "fajr_angle": 19.5, "isha_angle": None, "isha_offset_min": 90,
                 "asr_method": "standard", "elevation": 5.0, "calibrated": True},
-    "moscow":  {"lat": 55.7558, "lon": 37.6173, "tz": 3.0, "dst": False,  # Russia: permanent UTC+3 since 2014
+    "moscow":  {"lat": 55.7558, "lon": 37.6173, "tz": 3.0, "dst": False, "country": "RU",  # Russia: permanent UTC+3 since 2014
                 "fajr_angle": 16.0, "isha_angle": 15.0, "isha_offset_min": None,
                 "asr_method": "standard", "elevation": 0.0, "calibrated": True},
-    "mecca":   {"lat": 21.3891, "lon": 39.8579, "tz": 3.0, "dst": False,
+    "mecca":   {"lat": 21.3891, "lon": 39.8579, "tz": 3.0, "dst": False, "country": "SA",
                 "fajr_angle": 18.5, "isha_angle": None, "isha_offset_min": 90,
                 "asr_method": "standard", "elevation": 0.0, "calibrated": True},
-    "makkah":  {"lat": 21.3891, "lon": 39.8579, "tz": 3.0, "dst": False,
+    "makkah":  {"lat": 21.3891, "lon": 39.8579, "tz": 3.0, "dst": False, "country": "SA",
                 "fajr_angle": 18.5, "isha_angle": None, "isha_offset_min": 90,
                 "asr_method": "standard", "elevation": 0.0, "calibrated": True},
-    "medina":  {"lat": 24.5247, "lon": 39.5692, "tz": 3.0, "dst": False,
+    "medina":  {"lat": 24.5247, "lon": 39.5692, "tz": 3.0, "dst": False, "country": "SA",
                 "fajr_angle": 18.5, "isha_angle": None, "isha_offset_min": 90,
                 "asr_method": "standard", "elevation": 0.0, "calibrated": True},
-    "jeddah":  {"lat": 21.4858, "lon": 39.1925, "tz": 3.0, "dst": False,
+    "jeddah":  {"lat": 21.4858, "lon": 39.1925, "tz": 3.0, "dst": False, "country": "SA",
                 "fajr_angle": 18.5, "isha_angle": None, "isha_offset_min": 90,
                 "asr_method": "standard", "elevation": 0.0, "calibrated": True},
     # Not yet calibrated against real local sources — generic MWL-ish defaults,
     # Shafi'i asr (more common in Europe than Hanafi). Use with caution.
-    "london":  {"lat": 51.5072, "lon": -0.1276, "tz": 0.0, "dst": True,  # GMT/BST, DST last Sun Mar - last Sun Oct
+    "london":  {"lat": 51.5072, "lon": -0.1276, "tz": 0.0, "dst": True, "country": "GB",  # GMT/BST, DST last Sun Mar - last Sun Oct
                 "fajr_angle": 18.0, "isha_angle": 17.0, "isha_offset_min": None,
                 "asr_method": "standard", "elevation": 11.0, "calibrated": False},
-    "paris":   {"lat": 48.8566, "lon": 2.3522, "tz": 1.0, "dst": True,  # CET/CEST, same EU DST window
+    "paris":   {"lat": 48.8566, "lon": 2.3522, "tz": 1.0, "dst": True, "country": "FR",  # CET/CEST, same EU DST window
                 "fajr_angle": 18.0, "isha_angle": 17.0, "isha_offset_min": None,
                 "asr_method": "standard", "elevation": 35.0, "calibrated": False},
-    "berlin":  {"lat": 52.5200, "lon": 13.4050, "tz": 1.0, "dst": True,
+    "berlin":  {"lat": 52.5200, "lon": 13.4050, "tz": 1.0, "dst": True, "country": "DE",
                 "fajr_angle": 18.0, "isha_angle": 17.0, "isha_offset_min": None,
                 "asr_method": "standard", "elevation": 34.0, "calibrated": False},
-    "rome":    {"lat": 41.9028, "lon": 12.4964, "tz": 1.0, "dst": True,
+    "rome":    {"lat": 41.9028, "lon": 12.4964, "tz": 1.0, "dst": True, "country": "IT",
                 "fajr_angle": 18.0, "isha_angle": 17.0, "isha_offset_min": None,
                 "asr_method": "standard", "elevation": 21.0, "calibrated": False},
-    "madrid":  {"lat": 40.4168, "lon": -3.7038, "tz": 1.0, "dst": True,
+    "madrid":  {"lat": 40.4168, "lon": -3.7038, "tz": 1.0, "dst": True, "country": "ES",
                 "fajr_angle": 18.0, "isha_angle": 17.0, "isha_offset_min": None,
                 "asr_method": "standard", "elevation": 667.0, "calibrated": False},
 }
@@ -137,6 +216,22 @@ CITY_LOOKUP = {
 AIRPORT_TO_CITY = {
     "nqz": "astana", "tse": "astana",   # Nursultan Nazarbayev / Astana Int'l (legacy TSE code)
     "ala": "almaty",
+    "cit": "shymkent",
+    "dmb": "taraz",
+    "kgf": "karaganda",
+    "akx": "aktobe",
+    "pwq": "pavlodar",
+    "ukk": "oskemen",
+    "plx": "semey",
+    "guw": "atyrau",
+    "sco": "aktau",
+    "ksn": "kostanay",
+    "ppk": "petropavlovsk",
+    "kzo": "kyzylorda",
+    "ura": "oral",
+    "kov": "kokshetau",
+    "hsa": "turkestan",
+    "dzn": "zhezkazgan",
     "ist": "istanbul", "saw": "istanbul",
     "ayt": "antalya",
     "dxb": "dubai", "dwc": "dubai",
@@ -206,6 +301,7 @@ def build_timeline(home_base: dict, trips: list, days: int, start: date = None) 
     def loc_dict(display_name, calib, d):
         return {
             "city": display_name,
+            "country": calib.get("country"),
             "lat": calib["lat"],
             "lon": calib["lon"],
             "tz_offset_hours": dst_adjusted_offset(calib["tz"], calib["dst"], d),
@@ -220,6 +316,7 @@ def build_timeline(home_base: dict, trips: list, days: int, start: date = None) 
     def home_loc(d):
         return {
             "city": home_base["city"],
+            "country": home_base.get("country", astana_defaults.get("country")),
             "lat": home_base["lat"],
             "lon": home_base["lon"],
             "tz_offset_hours": home_base.get("tz_offset_hours", astana_defaults["tz"]),
