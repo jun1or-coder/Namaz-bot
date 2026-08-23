@@ -99,7 +99,13 @@ CITY_LOOKUP = {
     "taraz":       {"lat": 42.9000, "lon": 71.3667, "tz": 5.0, "dst": False, "country": "KZ",
                 "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
                 "asr_method": "hanafi", "elevation": 658.0, "calibrated": False,
-                "note": "Reuses Astana/DUMK verified params at this city's own coordinates."},
+                "note": "Verified against sajda.com/kk/.../zhambyl-taraz for 24-27 Aug 2026: "
+                        "Fajr/Isha match exactly (0min, confirms 15/15 angles are correct). "
+                        "Small consistent residual on the rest (real time relative to raw calc): "
+                        "Sunrise +2min, Dhuhr +3min, Asr +3-4min, Maghrib -2 to -3min. Smaller than "
+                        "Almaty's 8-10min residual but a different shape than Astana's flat "
+                        "+5min Dhuhr/Asr rule — not applied here since the engine only supports "
+                        "that flat rule, not a per-prayer offset table. Good to ~3min without it."},
     "karaganda":   {"lat": 49.8047, "lon": 73.1094, "tz": 5.0, "dst": False, "country": "KZ",
                 "fajr_angle": 15.0, "isha_angle": 15.0, "isha_offset_min": None,
                 "asr_method": "hanafi", "elevation": 553.0, "calibrated": False,
